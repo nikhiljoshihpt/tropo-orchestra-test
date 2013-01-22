@@ -2,133 +2,96 @@
 
 error_reporting(0);
 
+// include required class files.
 require_once 'classes/limonade.php';
 require_once 'classes/tropo.class.php';
 
-// This is a helper method, used when the caller initially sends in a valid input over the text channel.
-function valid_text(&$tropo, $initial_text) {
+// Route for the initial caller dialog.
+dispatch_post('start', 'tropoStart');
+function tropoStart() {
 	
-// Welcome prompt.
-$tropo->ask("Welcome to the Tropo PHP example for $network");
-
-	// Provide a prompt based on the the initial_text value
-	if ($initial_text == "1") 
-		{$tropo->say("You picked Lord of the Rings.  Did you know Gandalf is also Magneto?  Weird.");
-		}
-	if ($initial_text == "2") 
-		{$tropo->say("You picked the original Star Wars.  I hear Leonard Nimoy was awesome in those.");
-		}
-	if ($initial_text == "3") 
-		{$tropo->say("You picked the Star Wars prequels.  Stop calling this number, Mr. Lucas, we know it's you.");
-		}
-	if ($initial_text == "4") 
-		{$tropo->say("You picked the Matrix. Dude, whoa.");
-		}
-		
-	// Tell Tropo what to do next. This redirects to the instructions under dispatch_post('/hangup', 'app_hangup').
-	$tropo->on(array("event" => "continue", "next" => "index.php?uri=hangup"));
-
-	// Tell Tropo what to do if there's an error. This redirects to the instructions under dispatch_post('/incomplete', 'app_incomplete').
-	$tropo->on(array("event" => "incomplete", "next" => "index.php?uri=incomplete"));
-
+	// Create a new instance of the Tropo object.
+	$tropo = new Tropo();	
+	
+	// Welcome message, and get caller input.
+	$tropo->say("Welcome to the tropo orchestra example.", array("barge" => false));
+	$tropo->ask("What is your favoirte programming language dude? You can say PHP, Ruby, Javascript or Python.", 
+				array("attempts" => 3,
+					  "choices" => "PHP, Ruby, JavaScript, Python", 
+					  "name" => "language", 
+					  "timeout" => 5)
+				);
+	
+	// Event handlers.
+	$tropo->on(array("event" => "continue", "next" => "index?uri=end", "say" => "Please hold."));
+	$tropo->on(array("event" => "error", "next" => "index?uri=error", "say" => "An error has occured."));
+	
+	// Render JSON for Tropo to consume.
+	$tropo->renderJSON();
+	
 }
 
-dispatch_post('start', 'app_start');
-function app_start() {
-
-	// Create a new instance of the Session object, and get the channel information.
-	$session = new Session();
-	$from_info = $session->getFrom();
-	$network = $from_info['channel'];	
-
-    // Create a new instance of the Tropo object.
-	$tropo = new Tropo();
+// Route for the final caler dialog.
+dispatch_post('end', 'tropoEnd');
+function tropoEnd() {
 	
-	 // See if any text was sent with session start.
-	$initial_text = $session->getInitialText();
-
-	// If the initial text is a zip code, skip the input collection and go right to results.
-	if(strlen($initial_text) == 1 && is_numeric($initial_text)) {
-	valid_text($tropo, $initial_text);
-	}
-	
-	else {
-
-	// Welcome prompt.
-	$tropo->say("Welcome to the Tropo PHP example for $network");
-
-	// Set up options for input.
-	$options = array("attempts" => 3, "bargein" => true, "choices" => "1,2,3,4", "mode" => "dtmf", "name" => "movie", "timeout" => 30);
-
-	// Ask the caller for input, pass in options.
-	$tropo->ask("Which of these trilogies do you like the best?  Press 1 to vote for Lord of the Rings, press 2 for the original Star Wars, 3 for the Star Wars prequels, or press 4 for the Matrix", $options);
-
-	// Tell Tropo what to do when the user has entered input, or if there's a problem. This redirects to the instructions under dispatch_post('/choice', 'app_choice') or dispatch_post('/incomplete', 'app_incomplete').
-	$tropo->on(array("event" => "continue", "next" => "index.php?uri=choice", "say" => "Please hold."));
-	$tropo->on(array("event" => "incomplete", "next" => "index.php?uri=incomplete"));
-	
-	}
-
-	// Render the JSON for the Tropo WebAPI to consume.
-	return $tropo->RenderJson();
-
-}
-
-dispatch_post('choice', 'app_choice');
-function app_choice() {
-	
-	// Accessing the result object
+	// Create a new instance of the result object, and get caller selection.
 	$result = new Result();
-	$choice = $result->getValue();
+	$selection = $result->getValue();	
 	
 	// Create a new instance of the Tropo object.
 	$tropo = new Tropo();
 	
-	// Provide a prompt based on the value
-	if ($choice == "1") 
-		{$tropo->say("You picked Lord of the Rings.  Did you know Gandalf is also Mag knee toe?  Weird.");
-		}
-	if ($choice == "2") 
-		{$tropo->say("You picked the original Star Wars.  I hear Leonard Nimoy was awe some in those.");
-		}
-	if ($choice == "3") 
-		{$tropo->say("You picked the Star Wars prequels.  Stop calling this number, Mr. Lucas, we know it's you.");
-		}
-	if ($choice == "4") 
-		{$tropo->say("You picked the Matrix. Dude, woe.");
-		}
+	// Alternate prompt based on caller selection.
+	switch($selection) {
+		
+		case 'PHP':
+			$toSay = "PHP is the shiz nit.";
+			break;
+			
+		case 'Ruby':
+			$toSay = "I have nothing against Ruby.";
+			break;
+			
+		case 'Javascript':
+			$toSay = "Javascript is mighty fine.";
+			break;
+			
+		case 'Python':
+			$toSay = "Python is for lovers.";
+		
+	}
+	
+	// Read out prompt based on caller langage selection.
+	$tropo->say("You chose, " . $selection);	
+	$tropo->say($toSay);	
+	$tropo->say("Thanks for playing along. Goodbye");	
+	
+	// Hangup when done.
+	$tropo->hangup();
+		
+	// Render JSON for Tropo to consume.
+	$tropo->renderJSON();
 
-	// Tell Tropo what to do next. This redirects to the instructions under dispatch_post('/hangup', 'app_hangup').
-	$tropo->on(array("event" => "continue", "next" => "index.php?uri=hangup"));
-	
-	// Tell Tropo what to do if there's an problem, like a timeout. This redirects to the instructions under dispatch_post('/incomplete', 'app_incomplete').
-	$tropo->on(array("event" => "incomplete", "next" => "index.php?uri=incomplete"));
-	
-	// Render the JSON for the Tropo WebAPI to consume.
-	return $tropo->RenderJson();
 }
 
-dispatch_post('hangup', 'app_hangup');
-function app_hangup() {
+// Route for an error dialog.
+dispatch_post('error', 'tropoError');
+function tropoError() {
 	
-	$tropo = new Tropo();
+	// Create a new instance of the Tropo object.
+	$tropo = new Tropo();	
 	
-	$tropo->say("Thanks for voting!");
-	$tropo->hangup;
-	return $tropo->RenderJson();
+	// Error prompt.
+	$tropo->say("Sorry, an error has occured. Please try again later");
+
+	// Hangup when done.
+	$tropo->hangup();
+	
+	// Render JSON for Tropo to consume.
+	$tropo->renderJSON();
+	
 }
 
-dispatch_post('incomplete', 'app_incomplete');
-function app_error() {
-	
-	$tropo = new Tropo();
-	
-	$tropo->say("Something has gone wrong, please call back.");
-	$tropo->hangup;
-	return $tropo->RenderJson();
-}
-
-// Run this sucker!
+// Run the app.
 run();
- 
-?>    
